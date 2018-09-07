@@ -2,47 +2,46 @@
 import os
 import sys
 from pprint import pprint
+
+import time
+import xlrd as xlrd
+
 sys.path.append(os.getcwd())
 from wechatarticles.ReadOutfile import Reader
-from wechatarticles import ArticlesAPI, tools
+from wechatarticles import ArticlesAPI, tools, ArticlesUrls
 
 if __name__ == '__main__':
-    username = "username"
-    password = "password"
-    official_cookie = "official_cookie"
-    token = "token"
-    appmsg_token = "appmsg_token"
-    wechat_cookie = "wechat_cookie"
+    official_cookie_1 = 1
+    token_1 = 1
+    official_cookie_2 = 1
+    token_2 = "*"
+    cookie_list = [[official_cookie_1, token_1], [official_cookie_2, token_2]]
+    # excel
+    data = xlrd.open_workbook(r'/home/yanring/Project/wechat_articles_spider/wechat.xlsx')
+    table = data.sheets()[0]
+    nrows = table.nrows
+    ncols = table.ncols
+    # time.sleep(600)
+    for row in range(18,nrows):
+        if 1:
+            test = ArticlesUrls(cookie=cookie_list[1][0], token=cookie_list[1][1])
+        else:
+            test = ArticlesUrls(cookie=cookie_list[0][0], token=cookie_list[0][1])
 
-    nickname = "nickname"
+        wechat_name = table.row(row)[0].value
+        articles_sum,first_publish_time = test.articles_total_nums(wechat_name)
+        # table.put_cell(row, 5, 2, articles_sum, 0)
+        # table.put_cell(row, 6, 1, first_publish_time, 0)
+        with open(r'/home/yanring/Project/wechat_articles_spider/data.txt','a') as f:
+            f.write('%d,%s,%s,\n'%(articles_sum,first_publish_time,wechat_name))
+        print(wechat_name,' ',articles_sum)
+    # 实例化爬取对象
+    # 账号密码自动获取cookie和token
+    # test = ArticlesUrls(username=username, password=password)
+    # 手动输入账号密码
 
-    # 手动输入所有参数
-    test = ArticlesAPI(
-        official_cookie=official_cookie,
-        token=token,
-        appmsg_token=appmsg_token,
-        wechat_cookie=wechat_cookie)
+    # test = ArticlesUrls(cookie=official_cookie, token=token)
 
-    # 输入账号密码，自动登录公众号，手动输入appmsg_token和wechat_cookie
-    test = ArticlesAPI(
-        username=username,
-        password=password,
-        appmsg_token=appmsg_token,
-        wechat_cookie=wechat_cookie)
-
-    # 手动输入official_cookie和token, 自动获取appmsg_token和wechat_cookie
-    test = ArticlesAPI(
-        official_cookie=official_cookie, token=token, outfile="outfile")
-
-    # 输入帐号密码，自动登陆公众号, 自动获取appmsg_token和wechat_cookie
-    test = ArticlesAPI(username=username, password=password, outfile="outfile")
-
-    # 自定义爬取，每次爬取5篇以上
-    data = test.complete_info(nickname=nickname, begin="0")
-    print(data.__len__())
-    pprint(data)
-
-    # 自定义从某部分开始爬取，持续爬取，直至爬取失败为止，一次性最多爬取40篇（功能未测试，欢迎尝试）
-    datas = test.continue_info(nickname=nickname, begin="0")
-
-    tools.save_json("test.json", data)
+    # 输入公众号名称，获取公众号文章总数
+    # articles_sum = test.articles_total_nums('闵行档案')
+    # print(articles_sum)

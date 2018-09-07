@@ -1,8 +1,11 @@
 # coding:  utf-8
 import hashlib
 import os
+import random
+from math import floor, ceil
 
 import requests
+import time
 from requests.cookies import cookielib
 
 
@@ -34,7 +37,7 @@ class ArticlesUrls(object):
         self.s = requests.session()
         self.headers = {
             "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.62 Safari/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.62 Safari/537.36"
         }
         self.params = {
             "lang": "zh_CN",
@@ -111,15 +114,15 @@ class ArticlesUrls(object):
         -------
             None
         """
-        #实例化一个LWPcookiejar对象
+        # 实例化一个LWPcookiejar对象
         new_cookie_jar = cookielib.LWPCookieJar(username + '.txt')
 
-        #将转换成字典格式的RequestsCookieJar（这里我用字典推导手动转的）保存到LWPcookiejar中
+        # 将转换成字典格式的RequestsCookieJar（这里我用字典推导手动转的）保存到LWPcookiejar中
         requests.utils.cookiejar_from_dict(
             {c.name: c.value
              for c in self.s.cookies}, new_cookie_jar)
 
-        #保存到本地文件
+        # 保存到本地文件
         new_cookie_jar.save(
             'cookies/' + username + '.txt',
             ignore_discard=True,
@@ -137,16 +140,16 @@ class ArticlesUrls(object):
         -------
             None
         """
-        #实例化一个LWPCookieJar对象
+        # 实例化一个LWPCookieJar对象
         load_cookiejar = cookielib.LWPCookieJar()
-        #从文件中加载cookies(LWP格式)
+        # 从文件中加载cookies(LWP格式)
         load_cookiejar.load(
             'cookies/' + username + '.txt',
             ignore_discard=True,
             ignore_expires=True)
-        #工具方法转换成字典
+        # 工具方法转换成字典
         load_cookies = requests.utils.dict_from_cookiejar(load_cookiejar)
-        #工具方法将字典转换成RequestsCookieJar，赋值给session的cookies.
+        # 工具方法将字典转换成RequestsCookieJar，赋值给session的cookies.
         self.s.cookies = requests.utils.cookiejar_from_dict(load_cookies)
 
     def __md5_passwd(self, password):
@@ -297,6 +300,63 @@ class ArticlesUrls(object):
                 search_url, headers=self.headers, params=self.params)
             return official.json()["list"][0]
         except Exception:
+            time.sleep(1200)
+            print('查询fakeid时限流')
+            # raise Exception(u"公众号名称错误或cookie、token错误，请重新输入")
+
+    def articles_total_nums(self, nickname):
+        """
+        获取公众号的总共发布的文章数量
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        int
+            文章总数
+        """
+        self.__verify_str(nickname, "nickname")
+        total_num = 0
+        official_info = self.official_info(nickname)
+        fakeid = official_info["fakeid"]
+
+        first_publish_time = "0"
+        count = 0
+        first_publish_time = 10e15
+        try:
+            try:
+                total_days = (ceil(self.__get_articles_data(nickname, "0", fakeid)["app_msg_cnt"] / 5))
+                total_days = min(400,total_days) # >400的微信不显示
+            except Exception:
+                print(nickname, self.__get_articles_data(nickname, "0", fakeid), time.time(), '被封')
+                time.sleep(1200)
+                total_days = (ceil(self.__get_articles_data(nickname, "0", fakeid)["app_msg_cnt"] / 5))
+
+            for i in range(total_days - 2, total_days):
+                time.sleep(2)
+                count = i
+                begin = str(i * 5)
+                rep = self.__get_articles_data(nickname, begin, fakeid)
+                total_num = rep['app_msg_cnt']
+                if total_num is 0:
+                    return 0 ,0
+                print(nickname, ':', total_num)
+                time.sleep(30 + 5 * random.random())
+                first_publish_time = min(first_publish_time, min(int(i['update_time']) for i in rep['app_msg_list']))
+                # if i == total_days - 1:
+            first_publish_time = time.strftime("%Y-%m-%d %H:%M:%S",
+                                               time.localtime(first_publish_time))
+            if total_days >= 400:
+                first_publish_time += ' (超过可查询范围)'
+
+            return total_num, first_publish_time
+        except KeyError:
+            print(rep)
+            print(u"cookie已被封", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+            time.sleep(1200)
+            return 0, 0
+        except Exception:
             raise Exception(u"公众号名称错误或cookie、token错误，请重新输入")
 
     def articles_nums(self, nickname):
@@ -409,10 +469,11 @@ class ArticlesUrls(object):
     def __get_articles_data(self,
                             nickname,
                             begin,
+                            fake_id,
                             count=5,
                             type_="9",
                             action="list_ex",
-                            query=None):
+                            query='-'):
         """
         获取公众号文章的一些信息
         Parameters
@@ -441,12 +502,12 @@ class ArticlesUrls(object):
         # 获取文章信息的url
         appmsg_url = "https://mp.weixin.qq.com/cgi-bin/appmsg"
 
-        try:
-            # 获取公众号的fakeid
-            official_info = self.official_info(nickname)
-            self.params["fakeid"] = official_info["fakeid"]
-        except Exception:
-            raise Exception(u"公众号名称错误或cookie、token错误，请重新输入")
+        # try:
+        #     # 获取公众号的fakeid
+        #     official_info = self.official_info(nickname)
+        #     self.params["fakeid"] = official_info["fakeid"]
+        # except Exception:
+        #     raise Exception(u"公众号名称错误或cookie、token错误，请重新输入")
 
         # 增加/更改请求参数
         params = {
@@ -454,7 +515,9 @@ class ArticlesUrls(object):
             "begin": str(begin),
             "count": str(count),
             "type": str(type_),
-            "action": action
+            "action": action,
+            "random": random.random(),
+            "fakeid": fake_id
         }
         self.params.update(params)
 
